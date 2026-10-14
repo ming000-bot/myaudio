@@ -14,7 +14,7 @@
         }
         body {
             background-color: #000408;
-            background-image: 
+            background-image:
                 radial-gradient(rgba(57, 255, 20, 0.08) 1px, transparent 1px),
                 radial-gradient(rgba(57, 255, 20, 0.08) 1px, transparent 1px);
             background-size: 30px 30px;
@@ -60,31 +60,37 @@
             color:#39ff14;
             -webkit-text-fill-color:#39ff14;
         }
+        /* 按钮hover 鼠标悬浮 */
+        button:hover{
+            background-color:rgba(57, 255, 20, 0.12) !important;
+        }
+        /* 按钮按下瞬间变色，手机触摸、电脑点击都生效 */
+        button:active{
+            background-color:rgba(57, 255, 20, 0.35) !important;
+            color:#000 !important;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4">
     <div class="w-full max-w-2xl flex flex-col gap-8">
         <!-- 标题 -->
         <h1 class="neon-text text-center text-3xl md:text-5xl font-bold tracking-widest">明制*文字语音播放器</h1>
-
         <!-- 输入框 -->
-        <textarea 
+        <textarea
             id="textInput"
             class="neon-border bg-transparent w-full p-6 text-2xl md:text-4xl neon-text outline-none resize-none"
             rows="4"
             placeholder="输入内容"
         ></textarea>
-
         <!-- 音色选择 -->
         <div class="w-full px-2">
             <div class="flex justify-between items-center mb-2">
                 <span class="neon-text text-xl">选择音色</span>
             </div>
             <select id="voiceSelect" class="neon-border w-full p-3 text-xl">
-                <option value="">加载音色中...</option>
+                <option value="-1">默认语音(可用)</option>
             </select>
         </div>
-
         <!-- 语速调节区域 -->
         <div class="w-full px-2">
             <div class="flex justify-between items-center mb-2">
@@ -93,24 +99,22 @@
             </div>
             <input type="range" id="rateSlider" min="0.1" max="10" step="0.1" value="1" class="w-full">
         </div>
-
         <!-- 按钮区域，两个按钮同尺寸 -->
         <div class="flex flex-wrap gap-6 justify-center">
-            <button 
+            <button
                 id="playBtn"
-                class="neon-border bg-transparent w-48 md:w-56 px-8 py-4 text-2xl md:text-3xl neon-text hover:bg-[#39ff14]/10 transition-all"
+                class="neon-border bg-transparent w-48 md:w-56 px-8 py-4 text-2xl md:text-3xl neon-text transition-all"
             >
                 播放
             </button>
-            <button 
+            <button
                 id="loopBtn"
-                class="neon-border bg-transparent w-48 md:w-56 px-8 py-4 text-2xl md:text-3xl neon-text hover:bg-[#39ff14]/10 transition-all"
+                class="neon-border bg-transparent w-48 md:w-56 px-8 py-4 text-2xl md:text-3xl neon-text transition-all"
             >
                 循环播放
             </button>
         </div>
     </div>
-
 <script>
     const synth = window.speechSynthesis;
     const textInput = document.getElementById('textInput');
@@ -119,16 +123,20 @@
     const rateSlider = document.getElementById('rateSlider');
     const rateText = document.getElementById('rateText');
     const voiceSelect = document.getElementById('voiceSelect');
-
     let isLooping = false;
     let currentUtterance = null;
     let loopTimeout = null;
     let voices = [];
+    let pollTimer = null;
 
-    // 加载音色列表
+    //加载音色，兼容手机，增加轮询
     function loadVoices() {
         voices = synth.getVoices();
-        voiceSelect.innerHTML = '';
+        if(voices.length === 0){
+            return;
+        }
+        clearInterval(pollTimer);
+        voiceSelect.innerHTML = `<option value="-1">默认语音(可用)</option>`;
         voices.forEach((voice, index) => {
             const option = document.createElement('option');
             option.textContent = `${voice.name} (${voice.lang})`;
@@ -140,16 +148,18 @@
             voiceSelect.appendChild(option);
         })
     }
-    // 浏览器音色加载触发
+
     synth.onvoiceschanged = loadVoices;
+    //手机端轮询，解决onvoiceschanged不触发
+    pollTimer = setInterval(loadVoices,800);
 
     // 朗读函数，读取当前语速和音色
     function speak(text) {
         if (!isLooping || !text) return;
         currentUtterance = new SpeechSynthesisUtterance(text);
-        const selectedVoice = voices[voiceSelect.value];
-        if(selectedVoice){
-            currentUtterance.voice = selectedVoice;
+        const selIndex = Number(voiceSelect.value);
+        if(selIndex >=0 && voices[selIndex]){
+            currentUtterance.voice = voices[selIndex];
         }
         currentUtterance.lang = 'zh-CN';
         currentUtterance.rate = parseFloat(rateSlider.value);
@@ -165,7 +175,6 @@
         }
         synth.speak(currentUtterance);
     }
-
     // 停止所有语音与循环
     function stopAll() {
         synth.cancel();
@@ -173,28 +182,25 @@
         isLooping = false;
         loopBtn.textContent = "循环播放";
     }
-
     // 单次播放按钮
     playBtn.addEventListener('click', () => {
         stopAll();
         const txt = textInput.value.trim();
         if(txt){
             const utter = new SpeechSynthesisUtterance(txt);
-            const selectedVoice = voices[voiceSelect.value];
-            if(selectedVoice){
-                utter.voice = selectedVoice;
+            const selIndex = Number(voiceSelect.value);
+            if(selIndex >=0 && voices[selIndex]){
+                utter.voice = voices[selIndex];
             }
             utter.lang = 'zh-CN';
             utter.rate = parseFloat(rateSlider.value);
             synth.speak(utter);
         }
     });
-
     // 循环播放按钮
     loopBtn.addEventListener('click', () => {
         const txt = textInput.value.trim();
         if (!txt) return;
-
         if (isLooping) {
             stopAll();
         } else {
@@ -204,7 +210,6 @@
             speak(txt);
         }
     })
-
     // 输入框监听：删除内容为空时自动停止循环
     textInput.addEventListener('input', function(){
         const content = this.value.trim();
@@ -212,7 +217,6 @@
             stopAll();
         }
     })
-
     // 滑块更新显示语速
     rateSlider.addEventListener('input', ()=>{
         rateText.textContent = rateSlider.value;
@@ -220,4 +224,3 @@
 </script>
 </body>
 </html>
-<!-- （注：内容由AI生成） -->
